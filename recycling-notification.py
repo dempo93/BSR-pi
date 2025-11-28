@@ -10,6 +10,7 @@ import time
 import logging
 from dotenv import load_dotenv
 import os
+from io import TextIOWrapper
 
 
 url = "https://umnewforms.bsr.de/p/de.bsr.adressen.app/abfuhr/kalender/ics/{address}?year={year}&month={month}"
@@ -23,12 +24,18 @@ notification_end_hour = 23
 
 load_dotenv(dotenv_path)
 encoded_address = os.getenv("ENCODED_ADDRESS")
+calendar_sync_interval_days = int(os.getenv("CALENDAR_SYNC_INTERVAL_DAYS", "30"))
+display_on_minutes = int(os.getenv("DISPLAY_ON_MINUTES", "300"))
+calendar_sync_metadata_path = assets_path / "calendar_sync"
 
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.FileHandler(log_path))
 logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.DEBUG)
+
+assets_path.mkdir(parents=False, exist_ok=True)
+calendar_sync_metadata_path.touch(exist_ok=True)
 
 
 def cache_ics_monthly_data(path: Path, year: int, month: int) -> str:
@@ -41,20 +48,44 @@ def cache_ics_monthly_data(path: Path, year: int, month: int) -> str:
         raise Exception("Failed to retrieve ICS data.")
 
 
+def get_or_create_calendar_sync_file() -> TextIOWrapper:
+    try:
+        file = open(calendar_sync_metadata_path, 'r+')
+    except FileNotFoundError:
+        file = open(calendar_sync_metadata_path, 'w+')
+    return file
+
+def parse_date_from_metadata(data: str) -> datetime.date | None:
+    try:
+        if not data:
+            return None
+        return datetime.date.fromisoformat(data.strip())
+    except (TypeError, ValueError) as e:
+        logger.warning(f"Could not parse last sync metadata: {e}")
+        return None
+
 def cache_ics_yearly_data(now: datetime.datetime):
     try:
-        assets_path.mkdir(parents=False, exist_ok=True)
-        for index in range(0, 12):
-            current_month = now.month + index
-            current_year = now.year
-            if current_month > 12:
-                current_month = current_month - 12
-                current_year = current_year + 1
-            cache_ics_monthly_data(
-                assets_path / f"recycling_{current_year}_{current_month:02d}.ics",
-                current_year,
-                current_month,
-            )
+        with get_or_create_calendar_sync_file() as f:
+            last_sync_date = parse_date_from_metadata(f.read())
+            if last_sync_date and (now.date() - last_sync_date).days < calendar_sync_interval_days:
+                logger.info(f"ICS data is up to date, no need to cache, last sync: {last_sync_date}")
+                return
+            logger.info(f"Caching ICS data for the next 12 months, last sync: {last_sync_date}")
+            for index in range(0, 12):
+                current_month = now.month + index
+                current_year = now.year
+                if current_month > 12:
+                    current_month = current_month - 12
+                    current_year = current_year + 1
+                cache_ics_monthly_data(
+                    assets_path / f"recycling_{current_year}_{current_month:02d}.ics",
+                    current_year,
+                    current_month,
+                )
+            f.seek(0)
+            f.write(now.date().isoformat())
+            f.truncate()
     except Exception as e:
         logger.error(f"Error caching ICS data: {e}")
         return
