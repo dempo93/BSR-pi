@@ -16,6 +16,9 @@
         "--exclude", "\"*.pyc\"",
         "--exclude", "__pycache__",
         "--exclude", ".mypy_cache",
+        "--exclude", ".gitignore",
+        "--exclude", ".git",
+        "--exclude", "assets",
         "${workspaceFolder}/",
         "raspberrypi:~/Documents/luma-led-matrix/"
       ],
