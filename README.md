@@ -32,4 +32,6 @@ Install the required libraries `python -m pip install -r requirements.txt`
 5. extract the encoded address `012345678901234567890123` and put it into the .env file
 
 ## Run
+
+The script is designed to run even without internet connection for up to one year. It will download all the ical events from the BSR website and try to refresh them periodically
 Tbd
