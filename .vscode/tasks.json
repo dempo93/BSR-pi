@@ -1,0 +1,58 @@
+{
+  // Task definitions for deployment to Raspberry Pi before remote attach debugging
+  // The deploy task syncs local project files to the Pi using rsync.
+  // Requires SSH key or password-less auth configured for raspberrypi.
+  // Excludes common transient/cache folders.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Deploy to Raspberry Pi",
+      "type": "shell",
+      "command": "rsync",
+      "args": [
+        "-av",
+        "--delete",
+        "--exclude", ".vscode",
+        "--exclude", "\"*.pyc\"",
+        "--exclude", "__pycache__",
+        "--exclude", ".mypy_cache",
+        "${workspaceFolder}/",
+        "raspberrypi:~/Documents/luma-led-matrix/"
+      ],
+      "presentation": { "reveal": "always" },
+      "problemMatcher": []
+    },
+    {
+      // Kills any existing debugpy or recycling-notification process to avoid stale port/process conflicts. Weird regex to avoid killing the pkill command itself.
+      "label": "Kill debugpy on Raspberry Pi",
+      "type": "shell",
+      "command": "ssh raspberrypi 'pkill -f [d]ebugpy || true; pkill -f [r]ecycling-notification.py || true'",
+      "presentation": { "reveal": "always" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Start debugpy on Raspberry Pi",
+      "type": "shell",
+      "command": "ssh",
+      "args": [
+        "raspberrypi",
+        "cd ~/Documents/luma-led-matrix; nohup python3 -m debugpy --listen 0.0.0.0:5678 --wait-for-client recycling-notification.py > debugpy.log 2>&1 & disown; echo DEBUGPY_STARTED"
+      ],
+      "presentation": { "reveal": "always" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Prepare Pi Debug",
+      "dependsOn": [
+        "Kill debugpy on Raspberry Pi",
+        "Deploy to Raspberry Pi",
+        "Start debugpy on Raspberry Pi"
+      ],
+      "dependsOrder": "sequence",
+      "type": "shell",
+      "command": "sleep",
+      "args": ["10"]
+    }
+
+  ]
+}

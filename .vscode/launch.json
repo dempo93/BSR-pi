@@ -1,0 +1,27 @@
+{
+  // VS Code Launch Configurations for local run and remote Raspberry Pi debugging
+  // Remote debugging flow:
+  // 1. On the Pi (once): pip install --upgrade debugpy
+  // 2. In VS Code here: Start "Python: Attach to Raspberry Pi"
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: Attach to Raspberry Pi",
+      "type": "debugpy",
+      "request": "attach",
+      "preLaunchTask": "Prepare Pi Debug",
+      "connect": {
+        "host": "raspberrypi",
+        "port": 5678
+      },
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}",
+          "remoteRoot": "/home/pi/Documents/luma-led-matrix"
+        }
+      ],
+      "justMyCode": true,
+      "redirectOutput": true
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+debugpy
+icalendar
+python-dotenv
+luma.led-matrix
