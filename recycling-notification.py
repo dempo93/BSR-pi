@@ -19,19 +19,27 @@ root_folder_path = Path(__file__).parent.resolve()
 assets_path = root_folder_path / "assets"
 dotenv_path = root_folder_path / ".env"
 log_path = root_folder_path / "recycling-notification.log"
-notification_start_hour = 17
-notification_end_hour = 23
 
 load_dotenv(dotenv_path)
 encoded_address = os.getenv("ENCODED_ADDRESS")
 calendar_sync_interval_days = int(os.getenv("CALENDAR_SYNC_INTERVAL_DAYS", "30"))
 display_on_minutes = int(os.getenv("DISPLAY_ON_MINUTES", "300"))
+display_interval_seconds = int(os.getenv("DISPLAY_INTERVAL_SECONDS", "10"))
 calendar_sync_metadata_path = assets_path / "calendar_sync"
 
 
 logger = logging.getLogger(__name__)
-logger.addHandler(logging.FileHandler(log_path))
-logger.addHandler(logging.StreamHandler())
+formatter = logging.Formatter(
+    fmt= '[%(asctime)s] [%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+file_handler = logging.FileHandler(log_path)
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
+
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(formatter)
+logger.addHandler(stream_handler)
 logger.setLevel(logging.DEBUG)
 
 assets_path.mkdir(parents=False, exist_ok=True)
@@ -110,31 +118,20 @@ def read_ics_data_for_next_day(now: datetime.datetime) -> str | None:
 serial = spi(port=0, device=0, gpio=noop())
 device = max7219(serial)
 now = datetime.datetime.now()
+end_time = now + datetime.timedelta(minutes=display_on_minutes)
 cache_ics_yearly_data(now)
 
 
-while True:
-    now = datetime.datetime.now()
-    if now.hour > notification_start_hour and now.hour < notification_end_hour:
-        trash_type = read_ics_data_for_next_day(now)
-        logger.info(f"Tomorrow's trash type: {trash_type}, today's date: {now.date()}")
-        if trash_type:
-            while (
-                now.hour > notification_start_hour and now.hour < notification_end_hour
-            ):
-                show_message(
-                    device,
-                    trash_type,
-                    fill="white",
-                    font=proportional(CP437_FONT),
-                    scroll_delay=0.05,
-                )
-                time.sleep(10)
-                now = datetime.datetime.now()
-    sleep_until = datetime.datetime.combine(
-        now.date() + datetime.timedelta(days=1),
-        datetime.time(hour=notification_start_hour),
-    )
-    logger.info(f"Sleeping until {sleep_until} from {now}")
-    sleep_for = (sleep_until - now).total_seconds()
-    time.sleep(sleep_for)
+trash_type = read_ics_data_for_next_day(now)
+logger.info(f"Tomorrow's trash type: {trash_type}, today's date: {now.date()}")
+if trash_type:
+    while (now < end_time):
+        show_message(
+            device,
+            trash_type,
+            fill="white",
+            font=proportional(CP437_FONT),
+            scroll_delay=0.05,
+        )
+        time.sleep(display_interval_seconds)
+        now = datetime.datetime.now()

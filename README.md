@@ -39,8 +39,19 @@ The amount of days between resyncs of the calendar
 #### DISPLAY_ON_MINUTES
 The amount of time the display will show the message for.
 
+#### DISPLAY_INTERVAL_SECONDS
+The amount of time the display will pause before repeating the message
 
 ## Run
+The script is designed to cache all the ical events from the BSR website and try to refresh them periodically. This is quite useful if you don't have an internet connection.
+Then it will load the correct ical event and display the type of trash which is going to be collected on the next day.
+Example: Install as cronjob, running everyday at 17:
+Run
+```
+crontab -e
+```
+Paste
+```
+0 17 * * * /usr/bin/python3 /path/to/your/script.py
+```
 
-The script is designed to run even without internet connection for up to one year. It will download all the ical events from the BSR website and try to refresh them periodically
-Tbd
