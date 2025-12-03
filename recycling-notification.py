@@ -30,8 +30,7 @@ calendar_sync_metadata_path = assets_path / "calendar_sync"
 
 logger = logging.getLogger(__name__)
 formatter = logging.Formatter(
-    fmt= '[%(asctime)s] [%(levelname)s] %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    fmt="[%(asctime)s] [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
 )
 file_handler = logging.FileHandler(log_path)
 file_handler.setFormatter(formatter)
@@ -58,10 +57,11 @@ def cache_ics_monthly_data(path: Path, year: int, month: int) -> str:
 
 def get_or_create_calendar_sync_file() -> TextIOWrapper:
     try:
-        file = open(calendar_sync_metadata_path, 'r+')
+        file = open(calendar_sync_metadata_path, "r+")
     except FileNotFoundError:
-        file = open(calendar_sync_metadata_path, 'w+')
+        file = open(calendar_sync_metadata_path, "w+")
     return file
+
 
 def parse_date_from_metadata(data: str) -> datetime.date | None:
     try:
@@ -72,14 +72,22 @@ def parse_date_from_metadata(data: str) -> datetime.date | None:
         logger.warning(f"Could not parse last sync metadata: {e}")
         return None
 
+
 def cache_ics_yearly_data(now: datetime.datetime):
     try:
         with get_or_create_calendar_sync_file() as f:
             last_sync_date = parse_date_from_metadata(f.read())
-            if last_sync_date and (now.date() - last_sync_date).days < calendar_sync_interval_days:
-                logger.info(f"ICS data is up to date, no need to cache, last sync: {last_sync_date}")
+            if (
+                last_sync_date
+                and (now.date() - last_sync_date).days < calendar_sync_interval_days
+            ):
+                logger.info(
+                    f"ICS data is up to date, no need to cache, last sync: {last_sync_date}"
+                )
                 return
-            logger.info(f"Caching ICS data for the next 12 months, last sync: {last_sync_date}")
+            logger.info(
+                f"Caching ICS data for the next 12 months, last sync: {last_sync_date}"
+            )
             for index in range(0, 12):
                 current_month = now.month + index
                 current_year = now.year
@@ -125,7 +133,7 @@ cache_ics_yearly_data(now)
 trash_type = read_ics_data_for_next_day(now)
 logger.info(f"Tomorrow's trash type: {trash_type}, today's date: {now.date()}")
 if trash_type:
-    while (now < end_time):
+    while now < end_time:
         show_message(
             device,
             trash_type,
