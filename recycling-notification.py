@@ -122,6 +122,17 @@ def read_ics_data_for_next_day(now: datetime.datetime) -> str | None:
                 return summary
     return None
 
+def replace_german_letters(text: str) -> str:
+    cp437_map = {
+        "Ä": chr(0x8E),
+        "Ö": chr(0x99),
+        "Ü": chr(0x9A),
+        "ä": chr(0x84),
+        "ö": chr(0x94),
+        "ü": chr(0x81),
+        "ß": chr(0xE1),
+    }
+    return "".join(cp437_map.get(ch, ch) for ch in text)
 
 serial = spi(port=0, device=0, gpio=noop())
 device = max7219(serial)
@@ -133,10 +144,12 @@ cache_ics_yearly_data(now)
 trash_type = read_ics_data_for_next_day(now)
 logger.info(f"Tomorrow's trash type: {trash_type}, today's date: {now.date()}")
 if trash_type:
+    trash_type_binary = replace_german_letters(trash_type) 
+
     while now < end_time:
         show_message(
             device,
-            trash_type,
+            trash_type_binary,
             fill="white",
             font=proportional(CP437_FONT),
             scroll_delay=0.05,
