@@ -26,6 +26,7 @@ calendar_sync_interval_days = int(os.getenv("CALENDAR_SYNC_INTERVAL_DAYS", "30")
 display_on_minutes = int(os.getenv("DISPLAY_ON_MINUTES", "300"))
 display_interval_seconds = int(os.getenv("DISPLAY_INTERVAL_SECONDS", "10"))
 calendar_sync_metadata_path = assets_path / "calendar_sync"
+dryrun = os.getenv("DRY_RUN_MODE", "False").lower() == "true"
 
 
 logger = logging.getLogger(__name__)
@@ -110,16 +111,19 @@ def cache_ics_yearly_data(now: datetime.datetime):
 def read_ics_data_for_next_day(now: datetime.datetime) -> str | None:
     tomorrow = now.date() + datetime.timedelta(days=1)
     ics_path = assets_path / f"recycling_{tomorrow.year}_{tomorrow.month:02d}.ics"
-    with open(ics_path, "r") as f:
-        ics_data = f.read()
-        cal = icalendar.Calendar.from_ical(ics_data)
-        for event in cal.walk("vevent"):
-            if event.get("dtstart") == tomorrow:
-                summary = event.get("summary")
-                summary_parts = summary.split(" ")
-                if len(summary_parts) >= 2:
-                    return summary_parts[1]
-                return summary
+    try:
+        with open(ics_path, "r") as f:
+            ics_data = f.read()
+            cal = icalendar.Calendar.from_ical(ics_data)
+            for event in cal.walk("vevent"):
+                if event.get("dtstart") == tomorrow:
+                    summary = event.get("summary")
+                    summary_parts = summary.split(" ")
+                    if len(summary_parts) >= 2:
+                        return summary_parts[1]
+                    return summary
+    except FileNotFoundError:
+        logger.error(f"ICS file not found for {tomorrow.year}-{tomorrow.month:02d}")
     return None
 
 
@@ -140,11 +144,26 @@ serial = spi(port=0, device=0, gpio=noop())
 device = max7219(serial)
 now = datetime.datetime.now()
 end_time = now + datetime.timedelta(minutes=display_on_minutes)
-cache_ics_yearly_data(now)
+
+if not dryrun:
+    cache_ics_yearly_data(now)
 
 
 trash_type = read_ics_data_for_next_day(now)
-logger.info(f"Tomorrow's trash type: {trash_type}, today's date: {now.date()}")
+log_msg = f"Tomorrow's trash type: {trash_type}, today's date: {now.date()}"
+logger.info(log_msg)
+
+if dryrun:
+    logger.info("Dry run mode enabled")
+    show_message(
+        device,
+        log_msg,
+        fill="white",
+        font=proportional(CP437_FONT),
+        scroll_delay=0.05,
+    )
+    exit(0)
+
 if trash_type:
     trash_type_binary = replace_german_letters(trash_type)
 

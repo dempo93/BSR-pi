@@ -54,4 +54,7 @@ Paste
 ```
 0 17 * * * /usr/bin/python3 /path/to/your/script.py
 ```
-
+Optionally run it in dryrun mode upon reboot. Add this line to your crontab
+```
+@reboot DRY_RUN_MODE=true /usr/bin/python3 /path/to/your/script.py
+```
