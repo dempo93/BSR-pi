@@ -46,6 +46,10 @@ assets_path.mkdir(parents=False, exist_ok=True)
 calendar_sync_metadata_path.touch(exist_ok=True)
 
 
+def get_ics_file_path(year: int, month: int) -> Path:
+    return assets_path / f"recycling_{year}_{month:02d}.ics"
+
+
 def cache_ics_monthly_data(path: Path, year: int, month: int) -> str:
     response = requests.get(url.format(address=encoded_address, year=year, month=month))
     if response.status_code == 200:
@@ -96,7 +100,7 @@ def cache_ics_yearly_data(now: datetime.datetime):
                     current_month = current_month - 12
                     current_year = current_year + 1
                 cache_ics_monthly_data(
-                    assets_path / f"recycling_{current_year}_{current_month:02d}.ics",
+                    get_ics_file_path(current_year, current_month),
                     current_year,
                     current_month,
                 )
@@ -108,20 +112,25 @@ def cache_ics_yearly_data(now: datetime.datetime):
         return
 
 
+def extract_trash_type(ics_data: str, target_date: datetime.date) -> str | None:
+    cal = icalendar.Calendar.from_ical(ics_data)
+    for event in cal.walk("vevent"):
+        if event.get("dtstart").dt == target_date:
+            summary = event.get("summary")
+            summary_parts = summary.split(" ")
+            if len(summary_parts) >= 2:
+                return summary_parts[1]
+            return summary
+    return None
+
+
 def read_ics_data_for_next_day(now: datetime.datetime) -> str | None:
     tomorrow = now.date() + datetime.timedelta(days=1)
-    ics_path = assets_path / f"recycling_{tomorrow.year}_{tomorrow.month:02d}.ics"
+    ics_path = get_ics_file_path(tomorrow.year, tomorrow.month)
     try:
         with open(ics_path, "r") as f:
             ics_data = f.read()
-            cal = icalendar.Calendar.from_ical(ics_data)
-            for event in cal.walk("vevent"):
-                if event.get("dtstart") == tomorrow:
-                    summary = event.get("summary")
-                    summary_parts = summary.split(" ")
-                    if len(summary_parts) >= 2:
-                        return summary_parts[1]
-                    return summary
+            return extract_trash_type(ics_data, tomorrow)
     except FileNotFoundError:
         logger.error(f"ICS file not found for {tomorrow.year}-{tomorrow.month:02d}")
     return None
@@ -140,40 +149,52 @@ def replace_german_letters(text: str) -> str:
     return "".join(cp437_map.get(ch, ch) for ch in text)
 
 
-serial = spi(port=0, device=0, gpio=noop())
-device = max7219(serial)
-now = datetime.datetime.now()
-end_time = now + datetime.timedelta(minutes=display_on_minutes)
+def main():
+    try:
+        serial = spi(port=0, device=0, gpio=noop())
+        device = max7219(serial)
+    except Exception as e:
+        logger.error(f"Could not initialize device: {e}")
+        if not dryrun:
+            raise e
+        device = None
 
-if not dryrun:
-    cache_ics_yearly_data(now)
+    now = datetime.datetime.now()
+    end_time = now + datetime.timedelta(minutes=display_on_minutes)
+
+    if not dryrun:
+        cache_ics_yearly_data(now)
+
+    trash_type = read_ics_data_for_next_day(now)
+    log_msg = f"Tomorrow's trash type: {trash_type}, today's date: {now.date()}"
+    logger.info(log_msg)
+
+    if dryrun:
+        logger.info("Dry run mode enabled")
+        if device:
+            show_message(
+                device,
+                log_msg,
+                fill="white",
+                font=proportional(CP437_FONT),
+                scroll_delay=0.05,
+            )
+        exit(0)
+
+    if trash_type:
+        trash_type_binary = replace_german_letters(trash_type)
+
+        while now < end_time:
+            show_message(
+                device,
+                trash_type_binary,
+                fill="white",
+                font=proportional(CP437_FONT),
+                scroll_delay=0.05,
+            )
+            time.sleep(display_interval_seconds)
+            now = datetime.datetime.now()
 
 
-trash_type = read_ics_data_for_next_day(now)
-log_msg = f"Tomorrow's trash type: {trash_type}, today's date: {now.date()}"
-logger.info(log_msg)
-
-if dryrun:
-    logger.info("Dry run mode enabled")
-    show_message(
-        device,
-        log_msg,
-        fill="white",
-        font=proportional(CP437_FONT),
-        scroll_delay=0.05,
-    )
-    exit(0)
-
-if trash_type:
-    trash_type_binary = replace_german_letters(trash_type)
-
-    while now < end_time:
-        show_message(
-            device,
-            trash_type_binary,
-            fill="white",
-            font=proportional(CP437_FONT),
-            scroll_delay=0.05,
-        )
-        time.sleep(display_interval_seconds)
-        now = datetime.datetime.now()
+if __name__ == "__main__":
+    main()
