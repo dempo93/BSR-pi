@@ -52,12 +52,12 @@ PRODID:-//Combined//
 BEGIN:VEVENT
 UID:12345
 DTSTART;VALUE=DATE:20251121
-SUMMARY:Abfuhr: Hausmüll
+SUMMARY:Abholung Hausmüll
 END:VEVENT
 BEGIN:VEVENT
 UID:67890
 DTSTART;VALUE=DATE:20251122
-SUMMARY:Abfuhr: Biogut
+SUMMARY:Abholung Biogut
 END:VEVENT
 END:VCALENDAR"""
 
@@ -85,12 +85,12 @@ PRODID:-//Combined//
 BEGIN:VEVENT
 UID:12345
 DTSTART;VALUE=DATE:20251121
-SUMMARY:Abfuhr: Hausmüll
+SUMMARY:Abholung Hausmüll
 END:VEVENT
 BEGIN:VEVENT
 UID:67890
 DTSTART;VALUE=DATE:20251121
-SUMMARY:Abfuhr: Biogut
+SUMMARY:Abholung Biogut
 END:VEVENT
 END:VCALENDAR"""
 
@@ -105,14 +105,12 @@ END:VCALENDAR"""
         ics_data = """BEGIN:VCALENDAR
 BEGIN:VEVENT
 DTSTART;VALUE=DATE:20251121
-SUMMARY:Hausmüll
+SUMMARY:Something else
 END:VEVENT
 END:VCALENDAR"""
         target_date = datetime.date(2025, 11, 21)
-        # Should return full summary if no split possible (or logic dictates) - current logic splits by space
-        # summary "Hausmüll" -> split(" ") -> ["Hausmüll"] (len 1) -> returns "Hausmüll"
         result = recycling_notification.extract_trash_type(ics_data, target_date)
-        self.assertEqual(result, ["Hausmüll"])
+        self.assertEqual(result, ["Something else"])
 
     @patch("requests.get")
     def test_cache_ics_monthly_data_success(self, mock_get):
@@ -158,7 +156,7 @@ END:VCALENDAR"""
         bsr_content = """BEGIN:VCALENDAR
 BEGIN:VEVENT
 DTSTART;VALUE=DATE:20251121
-SUMMARY:Abfuhr: Hausmüll
+SUMMARY:Abholung Hausmüll
 END:VEVENT
 END:VCALENDAR"""
 

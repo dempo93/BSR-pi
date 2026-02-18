@@ -118,8 +118,8 @@ def extract_trash_type(ics_data: str, target_date: datetime.date) -> list[str]:
     for event in cal.walk("vevent"):
         if event.get("dtstart").dt == target_date:
             summary = str(event.get("summary"))
-            if summary.startswith("Abfuhr: "):
-                trash_types.append(summary.split(": ", 1)[1])
+            if summary.startswith("Abholung "):
+                trash_types.append(summary.split(" ")[1])
             else:
                 trash_types.append(summary)
     return trash_types
@@ -182,8 +182,8 @@ def main():
     if not dryrun:
         cache_ics_yearly_data(now)
 
-    trash_type = read_ics_data_for_next_day(now)
-    log_msg = f"Tomorrow's trash type: {trash_type}, today's date: {now.date()}"
+    events = read_ics_data_for_next_day(now)
+    log_msg = f"Tomorrow's events: {events}, today's date: {now.date()}"
     logger.info(log_msg)
 
     if dryrun:
@@ -198,13 +198,13 @@ def main():
             )
         exit(0)
 
-    if trash_type:
-        trash_type_binary = replace_german_letters(trash_type)
+    if events:
+        events_binary = replace_german_letters(events)
 
         while now < end_time:
             show_message(
                 device,
-                trash_type_binary,
+                events_binary,
                 fill="white",
                 font=proportional(CP437_FONT),
                 scroll_delay=0.05,
