@@ -64,19 +64,42 @@ END:VCALENDAR"""
         # Test for date with event
         target_date = datetime.date(2025, 11, 21)
         result = recycling_notification.extract_trash_type(ics_data, target_date)
-        self.assertEqual(result, "Hausmüll")
+        self.assertEqual(result, ["Hausmüll"])
 
         # Test for another date
         target_date_2 = datetime.date(2025, 11, 22)
         result_2 = recycling_notification.extract_trash_type(ics_data, target_date_2)
-        self.assertEqual(result_2, "Biogut")
+        self.assertEqual(result_2, ["Biogut"])
 
         # Test for date without event
         target_date_none = datetime.date(2025, 11, 23)
         result_none = recycling_notification.extract_trash_type(
             ics_data, target_date_none
         )
-        self.assertIsNone(result_none)
+        self.assertEqual(result_none, [])
+
+    def test_extract_trash_type_multiple_events(self):
+        ics_data = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Combined//
+BEGIN:VEVENT
+UID:12345
+DTSTART;VALUE=DATE:20251121
+SUMMARY:Abfuhr: Hausmüll
+END:VEVENT
+BEGIN:VEVENT
+UID:67890
+DTSTART;VALUE=DATE:20251121
+SUMMARY:Abfuhr: Biogut
+END:VEVENT
+END:VCALENDAR"""
+
+        target_date = datetime.date(2025, 11, 21)
+        # We expect both events to be returned
+        result = recycling_notification.extract_trash_type(ics_data, target_date)
+        self.assertIn("Hausmüll", result)
+        self.assertIn("Biogut", result)
+        self.assertEqual(len(result), 2)
 
     def test_extract_trash_type_no_prefix(self):
         ics_data = """BEGIN:VCALENDAR
@@ -89,7 +112,7 @@ END:VCALENDAR"""
         # Should return full summary if no split possible (or logic dictates) - current logic splits by space
         # summary "Hausmüll" -> split(" ") -> ["Hausmüll"] (len 1) -> returns "Hausmüll"
         result = recycling_notification.extract_trash_type(ics_data, target_date)
-        self.assertEqual(result, "Hausmüll")
+        self.assertEqual(result, ["Hausmüll"])
 
     @patch("requests.get")
     def test_cache_ics_monthly_data_success(self, mock_get):
@@ -109,13 +132,62 @@ END:VCALENDAR"""
             mocked_file.assert_called_with(test_path, "w")
             mocked_file().write.assert_called_with("ICS DATA")
 
-        mock_get.assert_called_once()
-        self.assertIn(
-            "year=2025",
-            mock_get.call_args[0][0]
-            if mock_get.call_args
-            else mock_get.call_args_list[0][0][0],
-        )  # Check URL contains year
+    @patch("recycling_notification.get_ics_file_path")
+    @patch("pathlib.Path.glob")
+    @patch("pathlib.Path.exists")
+    @patch("builtins.open", new_callable=mock_open)
+    def test_read_ics_data_for_next_day_multiple_sources(
+        self, mock_file, mock_exists, mock_glob, mock_get_ics_path
+    ):
+        # Setup date
+        now = datetime.datetime(2025, 11, 20, 10, 0, 0)
+        tomorrow = datetime.date(2025, 11, 21)
+
+        # Mock BSR calendar path
+        mock_get_ics_path.return_value = Path("bsr.ics")
+
+        # Mock assets_static existence and files
+        mock_exists.return_value = True
+        mock_glob.return_value = [Path("static1.ics"), Path("static2.ics")]
+
+        # Mock file contents
+        # We need to simulate different content for different files
+        # bsr.ics -> Hausmüll
+        # static1.ics -> Yellow Bag
+        # static2.ics -> Nothing for today
+        bsr_content = """BEGIN:VCALENDAR
+BEGIN:VEVENT
+DTSTART;VALUE=DATE:20251121
+SUMMARY:Abfuhr: Hausmüll
+END:VEVENT
+END:VCALENDAR"""
+
+        static1_content = """BEGIN:VCALENDAR
+BEGIN:VEVENT
+DTSTART;VALUE=DATE:20251121
+SUMMARY:Yellow Bag
+END:VEVENT
+END:VCALENDAR"""
+
+        static2_content = """BEGIN:VCALENDAR
+BEGIN:VEVENT
+DTSTART;VALUE=DATE:20251122
+SUMMARY:Glass
+END:VEVENT
+END:VCALENDAR"""
+
+        # Set side_effect for open
+        handlers = (
+            mock_file.return_value.__enter__.return_value.read
+        )  # This is the read method
+        handlers.side_effect = [bsr_content, static1_content, static2_content]
+
+        result = recycling_notification.read_ics_data_for_next_day(now)
+
+        self.assertIn("Hausmüll", result)
+        self.assertIn("Yellow Bag", result)
+        self.assertNotIn("Glass", result)  # Date doesn't match
+        self.assertIn(" - ", result)
 
     @patch("requests.get")
     def test_cache_ics_monthly_data_failure(self, mock_get):

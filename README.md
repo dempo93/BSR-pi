@@ -42,6 +42,9 @@ The amount of time the display will show the message for.
 #### DISPLAY_INTERVAL_SECONDS
 The amount of time the display will pause before repeating the message
 
+#### DRY_RUN_MODE
+Print the message and additional debug data, exit immediately
+
 ## Run
 The script is designed to cache all the ical events from the BSR website and try to refresh them periodically. This is quite useful if you don't have an internet connection.
 Then it will load the correct ical event and display the type of trash which is going to be collected on the next day.
@@ -58,3 +61,7 @@ Optionally run it in dryrun mode upon reboot. Add this line to your crontab
 ```
 @reboot DRY_RUN_MODE=true /usr/bin/python3 /path/to/your/script.py
 ```
+
+## Other Features
+
+You can add any ics calendar in the assets_static folder to get the contents displayed on the monitor.

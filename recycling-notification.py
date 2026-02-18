@@ -112,28 +112,45 @@ def cache_ics_yearly_data(now: datetime.datetime):
         return
 
 
-def extract_trash_type(ics_data: str, target_date: datetime.date) -> str | None:
+def extract_trash_type(ics_data: str, target_date: datetime.date) -> list[str]:
     cal = icalendar.Calendar.from_ical(ics_data)
+    trash_types = []
     for event in cal.walk("vevent"):
         if event.get("dtstart").dt == target_date:
-            summary = event.get("summary")
-            summary_parts = summary.split(" ")
-            if len(summary_parts) >= 2:
-                return summary_parts[1]
-            return summary
-    return None
+            summary = str(event.get("summary"))
+            if summary.startswith("Abfuhr: "):
+                trash_types.append(summary.split(": ", 1)[1])
+            else:
+                trash_types.append(summary)
+    return trash_types
 
 
 def read_ics_data_for_next_day(now: datetime.datetime) -> str | None:
     tomorrow = now.date() + datetime.timedelta(days=1)
+    all_trash_types = []
+
     ics_path = get_ics_file_path(tomorrow.year, tomorrow.month)
     try:
         with open(ics_path, "r") as f:
             ics_data = f.read()
-            return extract_trash_type(ics_data, tomorrow)
+            all_trash_types.extend(extract_trash_type(ics_data, tomorrow))
     except FileNotFoundError:
         logger.error(f"ICS file not found for {tomorrow.year}-{tomorrow.month:02d}")
-    return None
+
+    assets_static_path = root_folder_path / "assets_static"
+    if assets_static_path.exists():
+        for ics_file in assets_static_path.glob("*.ics"):
+            try:
+                with open(ics_file, "r") as f:
+                    ics_data = f.read()
+                    all_trash_types.extend(extract_trash_type(ics_data, tomorrow))
+            except Exception as e:
+                logger.error(f"Error reading static ICS file {ics_file}: {e}")
+
+    if not all_trash_types:
+        return None
+
+    return " - ".join(all_trash_types)
 
 
 def replace_german_letters(text: str) -> str:
